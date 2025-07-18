@@ -23,6 +23,11 @@ namespace api.Repository
             await _context.SaveChangesAsync();
         }
 
+        public async Task<User?> GetUserByIdAsync(int id)
+        {
+            return await _context.Users.SingleOrDefaultAsync(u => u.Id == id);
+        }
+
         public async Task<User?> GetUserByEmailAsync(string email)
         {
             return await _context.Users.SingleOrDefaultAsync(u => u.Email == email);
