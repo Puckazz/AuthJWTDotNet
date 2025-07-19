@@ -37,5 +37,41 @@ namespace api.Repository
         {
             return await _context.Users.SingleOrDefaultAsync(u => u.Username == username);
         }
+        
+        // Refresh Token methods
+        public async Task<RefreshToken?> GetRefreshTokenAsync(string token)
+        {
+            return await _context.RefreshTokens
+                .Include(rt => rt.User)
+                .SingleOrDefaultAsync(rt => rt.Token == token);
+        }
+
+        public async Task AddRefreshTokenAsync(RefreshToken refreshToken)
+        {
+            _context.RefreshTokens.Add(refreshToken);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RevokeRefreshTokenAsync(RefreshToken refreshToken)
+        {
+            refreshToken.IsRevoked = true;
+            _context.RefreshTokens.Update(refreshToken);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RevokeAllUserRefreshTokensAsync(int userId)
+        {
+            var tokens = await _context.RefreshTokens
+                .Where(rt => rt.UserId == userId && rt.IsActive)
+                .ToListAsync();
+                
+            foreach (var token in tokens)
+            {
+                token.IsRevoked = true;
+            }
+            
+            _context.RefreshTokens.UpdateRange(tokens);
+            await _context.SaveChangesAsync();
+        }
     }
 }

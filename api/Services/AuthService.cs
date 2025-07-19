@@ -1,12 +1,14 @@
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using api.Dtos;
 using api.Entities;
 using api.Interfaces;
 using BCrypt.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace api.Services
@@ -42,10 +44,11 @@ namespace api.Services
 
             await _userRepository.AddUserAsync(user);
 
-            // Tạo JWT token
+            // Tạo JWT token và refresh token
             var token = GenerateJwtToken(user.Id, user.Username, user.Role);
+            var refreshToken = await GenerateRefreshToken(user.Id);
 
-            return AuthResult.CreateSuccess(token, user);
+            return AuthResult.CreateSuccess(token, refreshToken, user);
         }
 
         public async Task<AuthResult> LoginAsync(LoginDto model)
@@ -54,9 +57,53 @@ namespace api.Services
             if (user == null || !BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
                 return AuthResult.Failure("Invalid credentials");
 
+            // Tạo JWT token và refresh token
             var token = GenerateJwtToken(user.Id, user.Username, user.Role);
+            var refreshToken = await GenerateRefreshToken(user.Id);
 
-            return AuthResult.CreateSuccess(token, user);
+            return AuthResult.CreateSuccess(token, refreshToken, user);
+        }
+
+        public async Task<AuthResult> RefreshTokenAsync(string refreshToken)
+        {
+            var token = await _userRepository.GetRefreshTokenAsync(refreshToken);
+            
+            if (token == null || !token.IsActive)
+                return AuthResult.Failure("Invalid or expired refresh token");
+
+            // Generate new tokens
+            var newJwtToken = GenerateJwtToken(token.User.Id, token.User.Username, token.User.Role);
+
+            return AuthResult.CreateSuccess(newJwtToken, refreshToken, token.User);
+        }
+
+        public async Task<bool> RevokeTokenAsync(string refreshToken)
+        {
+            var token = await _userRepository.GetRefreshTokenAsync(refreshToken);
+            
+            if (token == null || !token.IsActive)
+                return false;
+
+            await _userRepository.RevokeRefreshTokenAsync(token);
+            return true;
+        }
+
+        private async Task<string> GenerateRefreshToken(int userId)
+        {
+            var randomBytes = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomBytes);
+            var token = Convert.ToBase64String(randomBytes);
+
+            var refreshToken = new RefreshToken
+            {
+                Token = token,
+                ExpiryDate = DateTime.UtcNow.AddDays(7), // 7 days expiry
+                UserId = userId
+            };
+
+            await _userRepository.AddRefreshTokenAsync(refreshToken);
+            return token;
         }
 
         public string GenerateJwtToken(int userId, string username, string role)

@@ -31,6 +31,7 @@ namespace api.Controllers
                 return BadRequest(result.Message);
 
             SetJwtCookie(result.Token!);
+            SetRefreshTokenCookie(result.RefreshToken!);
 
             return Ok(new { Message = "Registration successful" });
         }
@@ -47,14 +48,43 @@ namespace api.Controllers
                 return Unauthorized(result.Message);
 
             SetJwtCookie(result.Token!);
+            SetRefreshTokenCookie(result.RefreshToken!);
 
             return Ok(new { Message = "Login successful" });
         }
 
-        [HttpPost("logout")]
-        public IActionResult Logout()
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh()
         {
+            var refreshToken = Request.Cookies["refreshToken"];
+            
+            if (string.IsNullOrEmpty(refreshToken))
+                return Unauthorized("Refresh token not found");
+
+            var result = await _authService.RefreshTokenAsync(refreshToken);
+            
+            if (!result.Success)
+                return Unauthorized(result.Message);
+
+            SetJwtCookie(result.Token!);
+            SetRefreshTokenCookie(result.RefreshToken!);
+
+            return Ok(new { Message = "Token refreshed successfully" });
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var refreshToken = Request.Cookies["refreshToken"];
+            
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                await _authService.RevokeTokenAsync(refreshToken);
+            }
+
             Response.Cookies.Delete("jwt");
+            Response.Cookies.Delete("refreshToken");
+            
             return Ok(new { Message = "Logout successful" });
         }
 
@@ -62,6 +92,12 @@ namespace api.Controllers
         {
             var cookieOptions = GetCookieOptions();
             Response.Cookies.Append("jwt", token, cookieOptions);
+        }
+
+        private void SetRefreshTokenCookie(string refreshToken)
+        {
+            var cookieOptions = GetRefreshTokenCookieOptions();
+            Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
         }
 
         private CookieOptions GetCookieOptions()
@@ -72,6 +108,17 @@ namespace api.Controllers
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
                 Expires = DateTime.UtcNow.AddMinutes(GetExpiryInMinutes())
+            };
+        }
+
+        private CookieOptions GetRefreshTokenCookieOptions()
+        {
+            return new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7) // 7 days for refresh token
             };
         }
 

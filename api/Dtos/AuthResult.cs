@@ -7,14 +7,16 @@ namespace api.Dtos
         public bool Success { get; set; }
         public string? Message { get; set; }
         public string? Token { get; set; }
+        public string? RefreshToken { get; set; }
         public User? User { get; set; }
 
-        public static AuthResult CreateSuccess(string token, User user)
+        public static AuthResult CreateSuccess(string token, string refreshToken, User user)
         {
             return new AuthResult
             {
                 Success = true,
                 Token = token,
+                RefreshToken = refreshToken,
                 User = user
             };
         }

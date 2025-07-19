@@ -12,5 +12,11 @@ namespace api.Interfaces
         Task<User?> GetUserByUsernameAsync(string username);
         Task<User?> GetUserByEmailAsync(string email);
         Task AddUserAsync(User user);
+        
+        // Refresh Token methods
+        Task<RefreshToken?> GetRefreshTokenAsync(string token);
+        Task AddRefreshTokenAsync(RefreshToken refreshToken);
+        Task RevokeRefreshTokenAsync(RefreshToken refreshToken);
+        Task RevokeAllUserRefreshTokensAsync(int userId);
     }
 }
